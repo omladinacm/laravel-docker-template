@@ -1,0 +1,284 @@
+#!/usr/bin/env bash
+
+#By default, verbose output is not enabled
+verbose=0
+migrate=0
+generate_key=0
+
+if [[ -z "${ENVIRONMENT}" ]]; then
+  ENVIRONMENT=local
+fi
+
+for i in "$@"
+do
+  case ${i} in
+    -e=*|--environment=*)
+      ENVIRONMENT="${i#*=}"
+      shift # past argument=value
+      ;;
+    -m=*|--method=*)
+      method="${i#*=}"
+      shift # past argument=value
+      ;;
+    -v)
+      verbose=1
+      shift
+      ;;
+    -ac=*|--artisan=*)
+      artisan_command="${i#*=}"
+      shift
+      ;;
+    -cc=*|--composer=*)
+      composer_command="${i#*=}"
+      shift
+      ;;
+    *)
+      # unknown option, ignore it
+    ;;
+  esac
+done
+
+return_check()
+{
+  if [[ $1 != 0 ]]; then
+    echo "Error occurred, returned code $1"
+  else
+    echo "done"
+  fi
+}
+
+env_create()
+{
+  local ENV_FILE=src/.env
+
+  if [[ ! -f "$ENV_FILE" ]]; then
+    cp src/.env.example src/.env
+  else
+    echo $".env file already exists"
+  fi
+}
+
+docker_compose_up()
+{
+  echo "Bringing up the environment ... "
+  if [ ! -d "logs/php" ]; then
+    mkdir -p logs/php
+  fi
+  touch logs/php/fpm-error.log
+  touch logs/php/cli-error.log
+  if [[ ${verbose} == 1 ]]; then
+    docker-compose up -d nginx
+  else
+    docker-compose up -d nginx &> /dev/null
+  fi
+
+  return_check $?
+}
+
+docker_compose_down()
+{
+  echo "Bringing down the environment ... "
+  if [[ ${verbose} == 1 ]]; then
+    docker-compose down
+  else
+    docker-compose down &> /dev/null
+  fi
+
+  return_check $?
+}
+
+docker_exec()
+{
+  docker exec -it php $1
+}
+
+artisan()
+{
+  docker-compose run --rm artisan "$1"
+
+  return_check $?
+}
+
+
+artisan_up()
+{
+  echo "Bringing application online ... "
+  if [[ ${verbose} == 1 ]]; then
+    artisan "up"
+  else
+    artisan "up" &> /dev/null
+  fi
+
+  return_check $?
+}
+
+artisan_down()
+{
+  echo "Shutting down application ... "
+  if [[ ${verbose} == 1 ]]; then
+    artisan "down"
+  else
+    artisan "down" &> /dev/null
+  fi
+
+  return_check $?
+}
+
+composer()
+{
+  cd src/ || return
+  docker-compose run --rm composer "$1"
+
+  return_check $?
+}
+
+composer_install()
+{
+  echo "Running composer install ... "
+  cd src/ || return
+  if [[ ${verbose} == 1 ]]; then
+    if [[ ${ENVIRONMENT} == "production" ]]; then
+      composer "install --no-dev"
+    else
+      composer "install"
+    fi
+  else
+    if [[ ${ENVIRONMENT} == "production" ]]; then
+      composer "install --no-dev" &> /dev/null
+    else
+      composer "install" &> /dev/null
+    fi
+  fi
+
+  return_check $?
+}
+
+composer_update()
+{
+  echo "Running composer update ... "
+  cd src/ || return
+  if [[ ${verbose} == 1 ]]; then
+    if [[ ${ENVIRONMENT} == "production" ]]; then
+      composer "update --no-dev"
+    else
+      composer "update"
+    fi
+  else
+    if [[ ${ENVIRONMENT} == "production" ]]; then
+      composer "update --no-dev" &> /dev/null
+    else
+      composer "update" &> /dev/null
+    fi
+  fi
+
+  return_check $?
+}
+
+composer_dump_autoload()
+{
+  cd src/ || return
+  if [[ ${verbose} == 1 ]]; then
+    composer "dump-autoload -o"
+  else
+    composer "dump-autoload -o" &> /dev/null
+  fi
+
+  return_check $?
+}
+
+load()
+{
+    docker_compose_up
+#    artisan_up
+}
+
+unload()
+{
+#    artisan_down
+    docker_compose_down
+}
+
+helper()
+{
+  echo $""
+  echo $"Usage: $0 args [options]"
+  echo $"   $0 -m=setup [-gk] [-v]"
+  echo $""
+  echo $"Available arguments:"
+  echo $""
+  echo $"   -m, --method      Method to be executed, listed below"
+  echo $"   -e, --environment Custom environment setting (if env variable not set)"
+  echo $"   -h, --help        Shows this :)"
+  echo $""
+  echo $"Available methods:"
+  echo $""
+  echo $"   env_create                Creates .env file from .env.example if it doesn't exist"
+  echo $"   exec                      Execs into PHP Docker container"
+  echo $"   load                      Bring up the environment"
+  echo $"   unload                    Bring down the environment"
+  echo $"   reload                    Reload the environment (basically two upper commands in one)"
+  echo $"   artisan                   Execute any artisan command (must use -ac option)"
+  echo $"   artisan_up                Execute artisan up command"
+  echo $"   artisan_down              Execute artisan down command"
+  echo $"   composer                  Execute any composer command (must use -cc option)"
+  echo $"   composer_install          Execute composer install"
+  echo $"   composer_update           Execute composer update"
+  echo $"   dump_autoload             Execute composer optimized dump-autoload"
+  echo $""
+  echo $"Available options:"
+  echo $""
+  echo $"   -v                        Verbose mode"
+  echo $""
+  echo $"   -ac=, --artisan=\"artisan command\"           Custom artisan command to be executed"
+  echo $"   -cc=, --composer=\"composer command\"         Custom composer command to be executed"
+  echo $""
+}
+
+if [[ $1 == "--help" || $1 == "-h" ]]; then
+  helper
+fi
+
+case "${method}" in
+  env_create)
+    env_create
+    ;;
+  exec)
+    docker_exec bash
+    ;;
+  load)
+    load
+    ;;
+  unload)
+    unload
+    ;;
+  reload)
+    unload
+    load
+    ;;
+  artisan_up)
+    artisan_up
+    ;;
+  artisan_down)
+    artisan_down
+    ;;
+  artisan)
+    artisan "${artisan_command}"
+    ;;
+  composer)
+    composer "${composer_command}"
+    ;;
+  composer_install)
+    composer_install
+    ;;
+  composer_update)
+    composer_update
+    ;;
+  dump_autoload)
+    composer_dump_autoload
+    ;;
+  *)
+    echo $""
+    echo $"Run \"$0 --help\" to get list of commands"
+    echo $""
+    exit 1
+esac
