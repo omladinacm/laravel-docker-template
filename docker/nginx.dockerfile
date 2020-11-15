@@ -2,7 +2,6 @@ FROM nginx:1.19.3
 LABEL "com.vendor"="SEA Solutions" version="1.0"
 
 ADD docker/nginx/nginx.conf /etc/nginx/nginx.conf
-ADD docker/nginx/local/default.conf /etc/nginx/conf.d/default.conf
 
 RUN mkdir -p /var/www/html
 
