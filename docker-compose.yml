@@ -72,6 +72,8 @@ services:
       - ./src:/var/www/html
     working_dir: /var/www/html
     user: laravel
+    depends_on:
+      - php
     networks:
       - laravel
     entrypoint: ['composer']
@@ -94,6 +96,8 @@ services:
       - ./src:/var/www/html
     working_dir: /var/www/html
     user: laravel
+    depends_on:
+      - mysql
     entrypoint: ['php', '/var/www/html/artisan']
     networks:
       - laravel

@@ -47,14 +47,54 @@ return_check()
   fi
 }
 
+replace_env_values()
+{
+  local DOCKER_ENV=$1
+  local LARAVEL_ENV=$2
+
+  local APP_ENV
+  local DB_HOST
+  local DB_PORT
+  local DB_DATABASE
+  local DB_USERNAME
+  local DB_PASSWORD
+
+  APP_ENV=$(grep -Po '(?<=^APP_ENV=)\w*' "${DOCKER_ENV}")
+  DB_HOST=$(grep -Po '(?<=^DB_HOST=)\w*' "${DOCKER_ENV}")
+  DB_PORT=$(grep -Po '(?<=^DB_PORT=)\w*' "${DOCKER_ENV}")
+  DB_DATABASE=$(grep -Po '(?<=^DB_DATABASE=)\w*' "${DOCKER_ENV}")
+  DB_USERNAME=$(grep -Po '(?<=^DB_USERNAME=)\w*' "${DOCKER_ENV}")
+  DB_PASSWORD=$(grep -Po '(?<=^DB_PASSWORD=)\w*' "${DOCKER_ENV}")
+  sed -i "s/\(^APP_ENV=\).*/\APP_ENV=${APP_ENV}/" "${LARAVEL_ENV}"
+  sed -i "s/\(^DB_HOST=\).*/\DB_HOST=${DB_HOST}/" "${LARAVEL_ENV}"
+  sed -i "s/\(^DB_PORT=\).*/\DB_PORT=${DB_PORT}/" "${LARAVEL_ENV}"
+  sed -i "s/\(^DB_DATABASE=\).*/\DB_DATABASE=${DB_DATABASE}/" "${LARAVEL_ENV}"
+  sed -i "s/\(^DB_USERNAME=\).*/\DB_USERNAME=${DB_USERNAME}/" "${LARAVEL_ENV}"
+  sed -i "s/\(^DB_PASSWORD=\).*/\DB_PASSWORD=${DB_PASSWORD}/" "${LARAVEL_ENV}"
+}
+
 env_create()
 {
-  local ENV_FILE=src/.env
+  local LARAVEL_ENV=src/.env
+  local DOCKER_ENV=.env
 
-  if [[ ! -f "$ENV_FILE" ]]; then
+  if [[ ! -f "$LARAVEL_ENV" ]]; then
     cp src/.env.example src/.env
+
+    # shellcheck disable=SC2162
+    read -p $"Do you want to replace environment and DB connection data in Laravel .env file from Docker .env file? " answer
+
+    if [[ "${answer}" == "Y" || "${answer}" == "y" ]]; then
+      replace_env_values ${DOCKER_ENV} ${LARAVEL_ENV}
+    fi
   else
     echo $".env file already exists"
+    # shellcheck disable=SC2162
+    read -p $"Do you want to replace environment and DB connection data in Laravel .env file from Docker .env file? " answer
+
+    if [[ "${answer}" == "Y" || "${answer}" == "y" ]]; then
+      replace_env_values ${DOCKER_ENV} ${LARAVEL_ENV}
+    fi
   fi
 }
 
@@ -94,7 +134,7 @@ docker_exec()
 
 artisan()
 {
-  docker-compose run --rm artisan "$1"
+  docker-compose run --rm artisan $1
 
   return_check $?
 }
@@ -126,8 +166,7 @@ artisan_down()
 
 composer()
 {
-  cd src/ || return
-  docker-compose run --rm composer "$1"
+  docker-compose run --rm composer $1
 
   return_check $?
 }
@@ -135,7 +174,6 @@ composer()
 composer_install()
 {
   echo "Running composer install ... "
-  cd src/ || return
   if [[ ${verbose} == 1 ]]; then
     if [[ ${ENVIRONMENT} == "production" ]]; then
       composer "install --no-dev"
@@ -156,7 +194,6 @@ composer_install()
 composer_update()
 {
   echo "Running composer update ... "
-  cd src/ || return
   if [[ ${verbose} == 1 ]]; then
     if [[ ${ENVIRONMENT} == "production" ]]; then
       composer "update --no-dev"
@@ -176,7 +213,6 @@ composer_update()
 
 composer_dump_autoload()
 {
-  cd src/ || return
   if [[ ${verbose} == 1 ]]; then
     composer "dump-autoload -o"
   else
@@ -189,12 +225,12 @@ composer_dump_autoload()
 load()
 {
     docker_compose_up
-#    artisan_up
+    artisan_up
 }
 
 unload()
 {
-#    artisan_down
+    artisan_down
     docker_compose_down
 }
 
@@ -202,7 +238,7 @@ helper()
 {
   echo $""
   echo $"Usage: $0 args [options]"
-  echo $"   $0 -m=setup [-gk] [-v]"
+  echo $"   $0 -m=setup [-v]"
   echo $""
   echo $"Available arguments:"
   echo $""
@@ -255,14 +291,14 @@ case "${method}" in
     unload
     load
     ;;
+  artisan)
+    artisan "${artisan_command}"
+    ;;
   artisan_up)
     artisan_up
     ;;
   artisan_down)
     artisan_down
-    ;;
-  artisan)
-    artisan "${artisan_command}"
     ;;
   composer)
     composer "${composer_command}"
