@@ -40,8 +40,6 @@ services:
       MYSQL_USER: ${DB_USER}
       MYSQL_PASSWORD: ${DB_PASSWORD}
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
-      SERVICE_TAGS: ${APP_ENV}
-      SERVICE_NAME: mysql
     networks:
       - laravel
     volumes:
@@ -55,10 +53,8 @@ services:
     container_name: php
     restart: unless-stopped
     tty: true
-    depends_on:
-      - mysql
     volumes:
-      - ./docker/php/${APP_ENV}/:/usr/local/etc/php-fpm.d/
+      - ./docker/php/${APP_ENV}/www.conf:/usr/local/etc/php-fpm.d/www.conf
       - ./logs/php:/var/log
       - ./src:/var/www/html
     ports:
@@ -75,12 +71,12 @@ services:
     volumes:
       - ./src:/var/www/html
     working_dir: /var/www/html
+    user: laravel
     depends_on:
       - php
-    user: laravel
     networks:
       - laravel
-    entrypoint: ['composer', '--ignore-platform-reqs']
+    entrypoint: ['composer']
 
   npm:
     image: library/node:15.2
@@ -98,10 +94,10 @@ services:
     container_name: artisan
     volumes:
       - ./src:/var/www/html
-    depends_on:
-      - mysql
     working_dir: /var/www/html
     user: laravel
+    depends_on:
+      - mysql
     entrypoint: ['php', '/var/www/html/artisan']
     networks:
       - laravel
