@@ -2,8 +2,6 @@
 
 #By default, verbose output is not enabled
 verbose=0
-migrate=0
-generate_key=0
 
 if [[ -z "${ENVIRONMENT}" ]]; then
   ENVIRONMENT=local
@@ -31,6 +29,13 @@ do
     -cc=*|--composer=*)
       composer_command="${i#*=}"
       shift
+      ;;
+    -nc=*|--npm=*)
+      npm_command="${i#*=}"
+      shift
+      ;;
+    -sn=*|--seeder=*)
+      seed_name="${i#*=}"
       ;;
     *)
       # unknown option, ignore it
@@ -164,6 +169,126 @@ artisan_down()
   return_check $?
 }
 
+migrate()
+{
+  echo "Executing available migrations ... "
+  if [[ ${verbose} == 1 ]]; then
+    artisan "migrate"
+  else
+    artisan "migrate" &> /dev/null
+  fi
+
+  return_check $?
+}
+
+migrate_fresh()
+{
+  echo "Executing all migrations from beginning with seeders ... "
+  if [[ ${verbose} == 1 ]]; then
+    artisan "migrate:fresh --seed"
+  else
+    artisan "migrate:fresh --seed" &> /dev/null
+  fi
+
+  return_check $?
+}
+
+seed()
+{
+  echo "Executing $1 ... "
+  if [[ ${verbose} == 1 ]]; then
+    artisan "db:seed --class=$1"
+  else
+    artisan "db:seed --class=$1" &> /dev/null
+  fi
+
+  return_check $?
+}
+
+seed_all()
+{
+  echo "Executing all seeders ... "
+  if [[ ${verbose} == 1 ]]; then
+    artisan "db:seed"
+  else
+    artisan "db:seed" &> /dev/null
+  fi
+
+  return_check $?
+}
+
+cache_clear()
+{
+  echo "Clearing application cache ... "
+  if [[ ${verbose} == 1 ]]; then
+    artisan "cache:clear"
+  else
+    artisan "cache:clear" &> /dev/null
+  fi
+
+  return_check $?
+}
+
+config_cache()
+{
+  echo "Caching configuration ... "
+  if [[ ${verbose} == 1 ]]; then
+    artisan "config:cache"
+  else
+    artisan "config:cache" &> /dev/null
+  fi
+
+  return_check $?
+}
+
+config_clear()
+{
+  echo "Clearing configuration cache ... "
+  if [[ ${verbose} == 1 ]]; then
+    artisan "config:clear"
+  else
+    artisan "config:clear" &> /dev/null
+  fi
+
+  return_check $?
+}
+
+route_cache()
+{
+  echo "Caching routes ... "
+  if [[ ${verbose} == 1 ]]; then
+    artisan "route:cache"
+  else
+    artisan "route:cache" &> /dev/null
+  fi
+
+  return_check $?
+}
+
+route_clear()
+{
+  echo "Clearing route cache ... "
+  if [[ ${verbose} == 1 ]]; then
+    artisan "route:clear"
+  else
+    artisan "route:clear" &> /dev/null
+  fi
+
+  return_check $?
+}
+
+view_clear()
+{
+  echo "Clearing rendered views ... "
+  if [[ ${verbose} == 1 ]]; then
+    artisan "view:clear"
+  else
+    artisan "view:clear" &> /dev/null
+  fi
+
+  return_check $?
+}
+
 composer()
 {
   docker-compose run --rm composer $1
@@ -211,12 +336,69 @@ composer_update()
   return_check $?
 }
 
+composer_require()
+{
+  if [[ ${verbose} == 1 ]]; then
+    composer "require $1"
+  else
+    composer "require $1" &> /dev/null
+  fi
+
+  return_check $?
+}
+
+composer_require_dev()
+{
+  if [[ ${verbose} == 1 ]]; then
+    composer "require --dev $1"
+  else
+    composer "require --dev $1" &> /dev/null
+  fi
+
+  return_check $?
+}
+
 composer_dump_autoload()
 {
   if [[ ${verbose} == 1 ]]; then
     composer "dump-autoload -o"
   else
     composer "dump-autoload -o" &> /dev/null
+  fi
+
+  return_check $?
+}
+
+npm()
+{
+  docker-compose run --rm npm $1
+}
+
+npm_install()
+{
+  if [[ ${verbose} == 1 ]]; then
+    npm "install"
+  else
+    npm "install" &> /dev/null
+  fi
+
+  return_check $?
+}
+
+npm_run()
+{
+  if [[ ${verbose} == 1 ]]; then
+    if [[ ${ENVIRONMENT} == "production" ]]; then
+      npm "run prod"
+    else
+      npm "run dev"
+    fi
+  else
+    if [[ ${ENVIRONMENT} == "production" ]]; then
+      npm "run prod" &> /dev/null
+    else
+      npm "run dev" &> /dev/null
+    fi
   fi
 
   return_check $?
@@ -256,10 +438,25 @@ helper()
   echo $"   artisan                   Execute any artisan command (must use -ac option)"
   echo $"   artisan_up                Execute artisan up command"
   echo $"   artisan_down              Execute artisan down command"
+  echo $"   migrate                   Execute artisan migrate command"
+  echo $"   migrate_fresh             Execute artisan \"migrate:fresh --seed\" command"
+  echo $"   seed                      Execute specific seeder class, uses -sn option"
+  echo $"   seed_all                  Execute all seeders"
+  echo $"   cache_clear               Clears Laravel application cache"
+  echo $"   config_cache              Caches application configuration"
+  echo $"   config_clear              Clears cached application configuration"
+  echo $"   routes_cache              Caches routes"
+  echo $"   routes_clear              Clears route cache"
+  echo $"   view_clear                Clears rendered views cache"
   echo $"   composer                  Execute any composer command (must use -cc option)"
   echo $"   composer_install          Execute composer install"
   echo $"   composer_update           Execute composer update"
+  echo $"   composer_require          Adds required package through composer, uses -cc option"
+  echo $"   composer_require_dev      Adds required development package through composer, uses -cc option"
   echo $"   dump_autoload             Execute composer optimized dump-autoload"
+  echo $"   npm                       Execute any npm command (must use -nc option)"
+  echo $"   npm_install               Execute npm install command"
+  echo $"   npm_run                   Execute npm run (dev or prod, depending on environment variable) command"
   echo $""
   echo $"Available options:"
   echo $""
@@ -267,6 +464,7 @@ helper()
   echo $""
   echo $"   -ac=, --artisan=\"artisan command\"           Custom artisan command to be executed"
   echo $"   -cc=, --composer=\"composer command\"         Custom composer command to be executed"
+  echo $"   -nc=, --npm=\"npm command\"                   Custom npm command to be executed"
   echo $""
 }
 
@@ -300,6 +498,36 @@ case "${method}" in
   artisan_down)
     artisan_down
     ;;
+  migrate)
+    migrate
+    ;;
+  migrate_fresh)
+    migrate_fresh
+    ;;
+  seed)
+    seed "${seed_name}"
+    ;;
+  seed_all)
+    seed_all
+    ;;
+  cache_clear)
+    cache_clear
+    ;;
+  config_cache)
+    config_cache
+    ;;
+  config_clear)
+    config_clear
+    ;;
+  route_cache)
+    route_cache
+    ;;
+  route_clear)
+    route_clear
+    ;;
+  view_clear)
+    view_clear
+    ;;
   composer)
     composer "${composer_command}"
     ;;
@@ -309,8 +537,23 @@ case "${method}" in
   composer_update)
     composer_update
     ;;
+  composer_require)
+    composer_require "${composer_command}"
+    ;;
+  composer_require_dev)
+    composer_require_dev "${composer_command}"
+    ;;
   dump_autoload)
     composer_dump_autoload
+    ;;
+  npm)
+    npm "${npm_command}"
+    ;;
+  npm_install)
+    npm_install
+    ;;
+  npm_run)
+    npm_run
     ;;
   *)
     echo $""
